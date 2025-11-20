@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>BP Health Monitor</title>
+  <meta name="description" content="Medical grade blood pressure tracker with AI analysis." />
+  <link rel="manifest" href="./manifest.json" />
+  
+  <!-- iOS Support -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="BP Monitor" />
+  <link rel="apple-touch-icon" href="https://placehold.co/192x192/0B6BFF/ffffff/png?text=BP" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Import Map for Module Resolution -->
+  <script type="importmap">
+    {
+      "imports": {
+        "@google/genai": "https://esm.sh/@google/genai"
+      }
+    }
+  </script>
+
+  <style>
+    :root {
+      /* Light Theme Defaults */
+      --primary: #0B6BFF;
+      --primary-dark: #0050d1;
+      --bg: #f6fbff;
+      --surface: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --pattern-color: #cbd5e1;
+      --radius: 16px;
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      --header-bg: rgba(255, 255, 255, 0.8);
+      
+      /* Category Colors */
+      --c-normal: #22c55e;
+      --c-elevated: #eab308;
+      --c-stage1: #f97316;
+      --c-stage2: #ef4444;
+      --c-crisis: #7f1d1d;
+    }
+
+    /* Dark Theme Overrides */
+    [data-theme="dark"] {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --border: #334155;
+      --pattern-color: #334155;
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+      --header-bg: rgba(30, 41, 59, 0.8);
+    }
+
+    /* Logical Properties for RTL Support */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg);
+      /* Geometric Background Pattern */
+      background-image: radial-gradient(var(--pattern-color) 1.5px, transparent 1.5px);
+      background-size: 24px 24px;
+      color: var(--text-main);
+      line-height: 1.5;
+      padding: 1rem;
+      padding-bottom: 2rem;
+      transition: background-color 0.3s, color 0.3s;
+    }
+
+    /* Arabic Font Override */
+    [lang="ar"] body { font-family: 'Cairo', sans-serif; }
+
+    .app-container {
+      max-width: 600px;
+      margin-inline: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-block: 0.5rem;
+      background: var(--header-bg);
+      backdrop-filter: blur(8px);
+      padding: 0.75rem;
+      border-radius: var(--radius);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      transition: background 0.3s;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .logo {
+      width: 40px;
+      height: 40px;
+      background: var(--primary);
+      color: white;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      font-weight: bold;
+      font-size: 1.1rem;
+    }
+    h1 { font-size: 1.25rem; font-weight: 700; }
+    .subtitle { font-size: 0.875rem; color: var(--text-muted); }
+
+    /* Controls */
+    .controls { display: flex; gap: 0.5rem; }
+    .btn-icon {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 0.5rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 600;
+      color: var(--primary);
+      transition: background 0.3s, border-color 0.3s;
+      min-width: 40px;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      padding: 1.5rem;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+      transition: background 0.3s, border-color 0.3s, box-shadow 0.3s;
+    }
+
+    /* Forms */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .form-group { display: flex; flex-direction: column; gap: 0.5rem; }
+    label { font-size: 0.875rem; font-weight: 600; color: var(--text-main); }
+    input[type="number"] {
+      padding: 0.75rem;
+      background: var(--bg);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 1.1rem;
+      width: 100%;
+      transition: border-color 0.2s, background 0.3s, color 0.3s;
+    }
+    input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(11, 107, 255, 0.1); }
+    .error-msg { color: var(--c-stage2); font-size: 0.75rem; margin-top: 0.25rem; display: none; }
+    .error-msg.visible { display: block; }
+
+    /* Radio Group */
+    .radio-group {
+      display: flex;
+      background: var(--bg);
+      padding: 4px;
+      border-radius: 8px;
+      gap: 4px;
+      transition: background 0.3s;
+    }
+    .radio-label {
+      flex: 1;
+      text-align: center;
+      padding: 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      transition: background 0.2s, color 0.2s;
+    }
+    input[type="radio"] { display: none; }
+    input[type="radio"]:checked + .radio-label {
+      background: var(--surface);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    /* Buttons */
+    .btn-primary {
+      width: 100%;
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 1rem;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+    .btn-primary:active { background: var(--primary-dark); }
+    .btn-primary:disabled { opacity: 0.7; cursor: wait; }
+    
+    .btn-secondary {
+      width: 100%;
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      padding: 0.75rem;
+      border-radius: 12px;
+      margin-top: 0.75rem;
+      cursor: pointer;
+      transition: border-color 0.3s, color 0.3s;
+    }
+    
+    /* Emergency Section */
+    .emergency-bar {
+      margin-top: 1rem;
+      padding: 0.75rem;
+      background: #450a0a; /* Dark red for better contrast in dark mode */
+      color: #fca5a5;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.9rem;
+      border: 1px solid #7f1d1d;
+    }
+    /* Light mode override for emergency bar to keep original look */
+    [data-theme="light"] .emergency-bar {
+      background: #fff1f2;
+      color: var(--c-crisis);
+      border-color: #fecdd3;
+    }
+
+    .emergency-bar a {
+      color: inherit;
+      font-weight: 700;
+      text-decoration: underline;
+    }
+
+    /* Results */
+    .result-container {
+      text-align: center;
+      animation: slideUp 0.3s ease-out;
+    }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    .result-badge {
+      display: inline-block;
+      padding: 0.5rem 1.5rem;
+      border-radius: 50px;
+      color: white;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+    .result-reading { font-size: 2.5rem; font-weight: 800; line-height: 1; margin-bottom: 0.5rem; }
+    .result-desc { color: var(--text-muted); margin-bottom: 1.5rem; }
+    
+    /* Gauge */
+    .gauge-track {
+      height: 12px;
+      background: linear-gradient(to right, var(--c-normal), var(--c-elevated), var(--c-stage1), var(--c-stage2), var(--c-crisis));
+      border-radius: 6px;
+      position: relative;
+      margin: 1.5rem 0;
+    }
+    /* Flip gradient for RTL */
+    [dir="rtl"] .gauge-track {
+      background: linear-gradient(to left, var(--c-normal), var(--c-elevated), var(--c-stage1), var(--c-stage2), var(--c-crisis));
+    }
+    
+    .gauge-marker {
+      position: absolute;
+      top: -4px;
+      width: 4px;
+      height: 20px;
+      background: var(--text-main);
+      border: 1px solid var(--surface);
+      border-radius: 2px;
+      transition: left 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.3s;
+    }
+
+    /* History */
+    .history-list {
+      list-style: none;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .history-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem;
+      border-bottom: 1px solid var(--border);
+      transition: border-color 0.3s;
+    }
+    .history-item:last-child { border-bottom: none; }
+    .tag-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-inline-end: 8px; }
+
+    .hidden { display: none !important; }
+
+    /* Accessibility focus styles */
+    *:focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: 2px;
+    }
+    
+    /* AI Response Style */
+    #aiResponse {
+      background: var(--bg);
+      color: var(--text-main);
+      padding: 1.25rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      margin-bottom: 1rem;
+      text-align: start; 
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+    #aiResponse strong { color: var(--primary); }
+    #aiResponse ul { margin-inline-start: 1.5rem; margin-top: 0.5rem; }
+
+    #resRecommendation {
+        background: var(--bg) !important;
+        color: var(--text-main);
+        border: 1px solid var(--border);
+    }
+  </style>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+
+  <div class="app-container">
+    <header>
+      <div class="brand">
+        <div class="logo" aria-hidden="true">BP</div>
+        <div>
+          <h1 data-i18n="appTitle">BP Monitor</h1>
+          <div class="subtitle" data-i18n="appSubtitle">Health Tracker</div>
+        </div>
+      </div>
+      <div class="controls">
+        <button id="themeBtn" class="btn-icon" aria-label="Toggle Theme">🌙</button>
+        <button id="langBtn" class="btn-icon" aria-label="Toggle Language">عربي</button>
+        <button id="installBtn" class="btn-icon hidden" data-i18n="btnInstall">Install</button>
+      </div>
+    </header>
+
+    <main>
+      <!-- Calculator Card -->
+      <section class="card" aria-labelledby="calc-heading">
+        <h2 id="calc-heading" class="hidden">Calculator</h2>
+        
+        <!-- Sys / Dia -->
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="sys" data-i18n="lblSystolic">Systolic (Top)</label>
+            <input type="number" id="sys" inputmode="numeric" placeholder="120" min="70" max="300">
+            <span class="error-msg" id="errSys" data-i18n="errRangeSys">Range: 70-300</span>
+          </div>
+          <div class="form-group">
+            <label for="dia" data-i18n="lblDiastolic">Diastolic (Bottom)</label>
+            <input type="number" id="dia" inputmode="numeric" placeholder="80" min="40" max="200">
+            <span class="error-msg" id="errDia" data-i18n="errRangeDia">Range: 40-200</span>
+          </div>
+        </div>
+
+        <!-- Pulse / Age -->
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="pulse" data-i18n="lblPulse">Pulse (BPM)</label>
+            <input type="number" id="pulse" inputmode="numeric" placeholder="75" min="40" max="200">
+          </div>
+          <div class="form-group">
+            <label for="age" data-i18n="lblAge">Age</label>
+            <input type="number" id="age" inputmode="numeric" placeholder="35">
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label data-i18n="lblGender">Gender</label>
+          <div class="radio-group">
+            <input type="radio" name="gender" id="g-male" value="male" checked>
+            <label for="g-male" class="radio-label" data-i18n="valMale">Male</label>
+            
+            <input type="radio" name="gender" id="g-female" value="female">
+            <label for="g-female" class="radio-label" data-i18n="valFemale">Female</label>
+          </div>
+        </div>
+
+        <button id="calcBtn" class="btn-primary" data-i18n="btnCalculate">Check Pressure</button>
+        <button id="clearBtn" class="btn-secondary" data-i18n="btnClear">Clear</button>
+
+        <!-- Emergency Banner -->
+        <div class="emergency-bar">
+          <span data-i18n="emergencyText">Emergency? Call:</span>
+          <a href="tel:997" id="emergencyLink">997 📞</a>
+        </div>
+      </section>
+
+      <!-- Results Section -->
+      <section id="resultSection" class="card result-container hidden" aria-live="polite">
+        <div id="resBadge" class="result-badge">Normal</div>
+        <div class="result-reading">
+          <span id="resSys">120</span>/<span id="resDia">80</span>
+          <div style="font-size: 1rem; font-weight: normal; color: var(--text-muted); margin-top: 0.25rem;">
+            <span data-i18n="lblPulseShort">HR</span>: <span id="resPulse">75</span>
+          </div>
+        </div>
+        <div id="resDesc" class="result-desc">Your blood pressure is healthy.</div>
+        
+        <div class="gauge-track" aria-hidden="true">
+          <div id="gaugeMarker" class="gauge-marker" style="left: 25%"></div>
+        </div>
+
+        <div id="resRecommendation" style="font-size: 0.9rem; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+          <!-- JS populated -->
+        </div>
+        
+        <!-- AI Button -->
+        <button id="aiBtn" class="btn-primary" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); margin-bottom: 1rem;">
+          ✨ <span data-i18n="btnAI">Explain with AI</span>
+        </button>
+        
+        <!-- AI Response Container -->
+        <div id="aiResponse" class="hidden"></div>
+
+        <button id="findHospitalBtn" class="btn-primary" style="background: #475569" data-i18n="btnHospital">🏥 Find Nearest Hospital</button>
+        <div id="geoStatus" style="margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-muted);"></div>
+      </section>
+
+      <!-- History -->
+      <section class="card" style="margin-top: 1rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h3 data-i18n="historyTitle">Recent History</h3>
+          <div style="display: flex; gap: 0.5rem;">
+            <button id="deleteHistoryBtn" style="background:none; border:none; color:var(--c-crisis); cursor:pointer; font-weight:600;" aria-label="Delete History">
+              🗑️
+            </button>
+            <button id="exportBtn" style="background:none; border:none; color:var(--primary); cursor:pointer; font-weight:600;" data-i18n="btnExport">Export CSV</button>
+          </div>
+        </div>
+        <ul id="historyList" class="history-list">
+          <!-- JS Populated -->
+        </ul>
+        <p id="emptyHistory" style="text-align: center; color: var(--text-muted); font-size: 0.9rem; padding: 1rem;" data-i18n="msgNoHistory">No readings yet.</p>
+      </section>
+      
+      <p style="font-size: 0.75rem; color: var(--text-muted); text-align: center; margin-top: 2rem;" data-i18n="disclaimer">
+        Disclaimer: This tool is for educational purposes only. It is not a substitute for professional medical advice.
+      </p>
+    </main>
+  </div>
+
+<script type="module">
+import { GoogleGenAI } from "@google/genai";
+
+const I18N = {
+  en: {
+    appTitle: "BP Monitor",
+    appSubtitle: "Medical Grade Tracker",
+    btnInstall: "Install App",
+    lblSystolic: "Systolic (mmHg)",
+    lblDiastolic: "Diastolic (mmHg)",
+    lblPulse: "Heart Rate (BPM)",
+    lblPulseShort: "HR",
+    lblAge: "Age",
+    lblGender: "Gender",
+    valMale: "Male",
+    valFemale: "Female",
+    btnCalculate: "Check Pressure",
+    btnClear: "Clear Form",
+    btnHospital: "🏥 Find Nearest Hospital",
+    historyTitle: "Recent History",
+    btnExport: "Export CSV",
+    msgNoHistory: "No readings yet.",
+    msgConfirmDelete: "Are you sure? This will delete the entire record.",
+    emergencyText: "Emergency? Call:",
+    errRangeSys: "Systolic must be between 70 and 300.",
+    errRangeDia: "Diastolic must be between 40 and 200.",
+    errInputs: "Please check your inputs.",
+    disclaimer: "Disclaimer: Educational tool only. Not medical advice.",
+    geoLoading: "Locating...",
+    geoError: "Location unavailable. Opening Maps...",
+    btnAI: "Explain with AI",
+    aiLoading: "Consulting AI Doctor...",
+    aiError: "AI Service Unavailable.",
+    categories: {
+      normal: { label: "Normal", color: "var(--c-normal)", desc: "Your BP is healthy. Keep up the good work!", rec: "Maintain a balanced diet and exercise regularly." },
+      elevated: { label: "Elevated", color: "var(--c-elevated)", desc: "Slightly above range.", rec: "Reduce sodium intake and monitor daily." },
+      stage1: { label: "Stage 1 Hypertension", color: "var(--c-stage1)", desc: "High Blood Pressure.", rec: "Consult a doctor. Lifestyle changes recommended." },
+      stage2: { label: "Stage 2 Hypertension", color: "var(--c-stage2)", desc: "Very High Blood Pressure.", rec: "See a doctor within 24 hours." },
+      crisis: { label: "Hypertensive Crisis", color: "var(--c-crisis)", desc: "CRITICAL DANGER.", rec: "Seek emergency care immediately. Call for help." }
+    }
+  },
+  ar: {
+    appTitle: "مراقب ضغط الدم",
+    appSubtitle: "أداة تتبع طبية",
+    btnInstall: "تثبيت التطبيق",
+    lblSystolic: "الانقباضي (العلوي)",
+    lblDiastolic: "الانبساطي (السفلي)",
+    lblPulse: "نبضات القلب (BPM)",
+    lblPulseShort: "النبض",
+    lblAge: "العمر",
+    lblGender: "الجنس",
+    valMale: "ذكر",
+    valFemale: "أنثى",
+    btnCalculate: "فحص الضغط",
+    btnClear: "مسح النموذج",
+    btnHospital: "🏥 أقرب مستشفى",
+    historyTitle: "السجل الحديث",
+    btnExport: "تصدير CSV",
+    msgNoHistory: "لا توجد قراءات بعد.",
+    msgConfirmDelete: "هل انت متأكد، سيؤدي ذلك إلى حذف السجل بالكامل",
+    emergencyText: "حالة طارئة؟ اتصل بـ:",
+    errRangeSys: "يجب أن يكون الانقباضي بين 70 و 300.",
+    errRangeDia: "يجب أن يكون الانبساطي بين 40 و 200.",
+    errInputs: "يرجى التحقق من المدخلات.",
+    disclaimer: "تنبيه: هذه الأداة تعليمية فقط وليست بديلاً عن الاستشارة الطبية.",
+    geoLoading: "جارٍ تحديد الموقع...",
+    geoError: "الموقع غير متاح. فتح الخرائط...",
+    btnAI: "تحليل الذكاء الاصطناعي",
+    aiLoading: "جارٍ استشارة الطبيب الذكي...",
+    aiError: "خدمة الذكاء الاصطناعي غير متاحة.",
+    categories: {
+      normal: { label: "طبيعي", color: "var(--c-normal)", desc: "ضغط دمك صحي. استمر على هذا المنوال!", rec: "حافظ على نظام غذائي متوازن ومارس الرياضة." },
+      elevated: { label: "مرتفع قليلاً", color: "var(--c-elevated)", desc: "أعلى من المعدل الطبيعي.", rec: "قلل من تناول الملح وراقب ضغطك يومياً." },
+      stage1: { label: "فرط ضغط الدم (م1)", color: "var(--c-stage1)", desc: "ضغط دم مرتفع.", rec: "استشر طبيبك. ينصح بتغيير نمط الحياة." },
+      stage2: { label: "فرط ضغط الدم (م2)", color: "var(--c-stage2)", desc: "ضغط دم مرتفع جداً.", rec: "راجع الطبيب خلال 24 ساعة." },
+      crisis: { label: "نوبة ارتفاع ضغط الدم", color: "var(--c-crisis)", desc: "خطر حرج.", rec: "اطلب الرعاية الطبية فوراً أو اتصل بالطوارئ." }
+    }
+  }
+};
+
+let currentLang = localStorage.getItem('bp_lang') || 'en';
+let currentTheme = localStorage.getItem('bp_theme') || 'light';
+let historyData = JSON.parse(localStorage.getItem('bp_history') || '[]');
+
+function init() {
+  updateLang(currentLang);
+  updateTheme(currentTheme);
+  renderHistory();
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js');
+  }
+}
+
+function updateLang(lang) {
+  currentLang = lang;
+  localStorage.setItem('bp_lang', lang);
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+  
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (I18N[lang][key]) el.textContent = I18N[lang][key];
+  });
+
+  document.getElementById('langBtn').textContent = lang === 'ar' ? 'English' : 'عربي';
+  renderHistory();
+}
+
+function updateTheme(theme) {
+  currentTheme = theme;
+  localStorage.setItem('bp_theme', theme);
+  document.documentElement.setAttribute('data-theme', theme);
+  // Update icon based on NEXT state
+  document.getElementById('themeBtn').textContent = theme === 'dark' ? '☀️' : '🌙';
+}
+
+function getCategory(sys, dia) {
+  if (sys >= 180 || dia >= 120) return 'crisis';
+  if (sys >= 140 || dia >= 90) return 'stage2';
+  if (sys >= 130 || dia >= 80) return 'stage1';
+  if (sys >= 120 && dia < 80) return 'elevated';
+  return 'normal';
+}
+
+function calculateBP() {
+  const sys = parseInt(document.getElementById('sys').value);
+  const dia = parseInt(document.getElementById('dia').value);
+  const pulse = document.getElementById('pulse').value || '-';
+  const errSys = document.getElementById('errSys');
+  const errDia = document.getElementById('errDia');
+  let valid = true;
+
+  if (!sys || sys < 70 || sys > 300) { errSys.classList.add('visible'); valid = false; } 
+  else errSys.classList.remove('visible');
+
+  if (!dia || dia < 40 || dia > 200) { errDia.classList.add('visible'); valid = false; } 
+  else errDia.classList.remove('visible');
+
+  if (!valid) return;
+
+  const catKey = getCategory(sys, dia);
+  const catData = I18N[currentLang].categories[catKey];
+  
+  const resultSection = document.getElementById('resultSection');
+  resultSection.classList.remove('hidden');
+  document.getElementById('aiResponse').classList.add('hidden');
+  
+  document.getElementById('resBadge').textContent = catData.label;
+  document.getElementById('resBadge').style.backgroundColor = catData.color;
+  document.getElementById('resSys').textContent = sys;
+  document.getElementById('resDia').textContent = dia;
+  document.getElementById('resPulse').textContent = pulse;
+  document.getElementById('resDesc').textContent = catData.desc;
+  document.getElementById('resRecommendation').textContent = catData.rec;
+
+  let percent = ((sys - 90) / (200 - 90)) * 100;
+  percent = Math.max(0, Math.min(100, percent));
+  document.getElementById('gaugeMarker').style.left = `${percent}%`;
+
+  const record = { date: new Date().toISOString(), sys, dia, pulse, cat: catKey };
+  historyData.unshift(record);
+  localStorage.setItem('bp_history', JSON.stringify(historyData));
+  renderHistory();
+
+  resultSection.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function explainWithAI() {
+  const btn = document.getElementById('aiBtn');
+  const resDiv = document.getElementById('aiResponse');
+  const sys = document.getElementById('sys').value;
+  const dia = document.getElementById('dia').value;
+  const pulse = document.getElementById('pulse').value || 'N/A';
+  const age = document.getElementById('age').value || 'N/A';
+  const genderVal = document.querySelector('input[name="gender"]:checked').value;
+  const gender = currentLang === 'ar' ? (genderVal === 'male' ? 'ذكر' : 'أنثى') : genderVal;
+
+  btn.disabled = true;
+  resDiv.classList.remove('hidden');
+  resDiv.textContent = I18N[currentLang].aiLoading;
+
+  try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const prompt = `
+      Analyze this blood pressure reading:
+      Systolic: ${sys} mmHg
+      Diastolic: ${dia} mmHg
+      Heart Rate (Pulse): ${pulse} bpm
+      Patient details: Age ${age}, ${gender}.
+      
+      Provide a response in ${currentLang === 'ar' ? 'Arabic' : 'English'}:
+      1. Medical interpretation of this range.
+      2. Implications of the pulse/heart rate relative to the BP.
+      3. Immediate actions (What should I do?).
+      4. Long term recommendations.
+      
+      Keep it concise, friendly, and formatted with HTML tags (<b>, <br>, <ul>, <li>). Do not use markdown.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+    });
+      
+    resDiv.innerHTML = response.text;
+  } catch (err) {
+    console.error(err);
+    resDiv.textContent = I18N[currentLang].aiError;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  const empty = document.getElementById('emptyHistory');
+  list.innerHTML = '';
+
+  if (historyData.length === 0) {
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  historyData.slice(0, 10).forEach(item => {
+    const catData = I18N[currentLang].categories[item.cat];
+    const li = document.createElement('li');
+    li.className = 'history-item';
+    const dateStr = new Date(item.date).toLocaleDateString(currentLang);
+    const pulseStr = item.pulse && item.pulse !== '-' ? `<span style="color:var(--text-muted); font-size:0.8rem; margin-inline-start:4px;">❤ ${item.pulse}</span>` : '';
+    
+    li.innerHTML = `
+      <div>
+        <span class="tag-dot" style="background: ${catData.color}"></span>
+        <strong>${item.sys}/${item.dia}</strong>${pulseStr}
+        <div style="font-size:0.8rem; color:var(--text-muted)">${dateStr}</div>
+      </div>
+      <span style="font-size:0.85rem; font-weight:500">${catData.label}</span>
+    `;
+    list.appendChild(li);
+  });
+}
+
+function findHospital() {
+  const status = document.getElementById('geoStatus');
+  status.textContent = I18N[currentLang].geoLoading;
+
+  if (!navigator.geolocation) {
+    status.textContent = "N/A";
+    window.open('https://www.google.com/maps/search/hospital', '_blank');
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const { latitude, longitude } = pos.coords;
+      const url = `https://www.google.com/maps/search/hospital/@${latitude},${longitude},13z`;
+      status.textContent = "";
+      window.open(url, '_blank');
+    },
+    (err) => {
+      status.textContent = I18N[currentLang].geoError;
+      setTimeout(() => {
+        window.open('https://www.google.com/maps/search/hospital', '_blank');
+      }, 1000);
+    }, 
+    { timeout: 5000 }
+  );
+}
+
+function exportCSV() {
+  if (historyData.length === 0) return;
+  
+  let csvContent = "\uFEFFDate,Systolic,Diastolic,Pulse,Category\n"; 
+  historyData.forEach(row => {
+    const catLabel = I18N[currentLang].categories[row.cat].label;
+    const pulse = row.pulse || '-';
+    csvContent += `${new Date(row.date).toLocaleDateString()},${row.sys},${row.dia},${pulse},"${catLabel}"\n`;
+  });
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.setAttribute("href", url);
+  link.setAttribute("download", "bp_history.csv");
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+// Warn on refresh/close
+window.addEventListener('beforeunload', (e) => {
+  const msg = I18N[currentLang].msgConfirmDelete; 
+  e.returnValue = msg;
+  return msg;
+});
+
+// Explicit delete history button
+document.getElementById('deleteHistoryBtn').addEventListener('click', () => {
+  if (confirm(I18N[currentLang].msgConfirmDelete)) {
+    historyData = [];
+    localStorage.setItem('bp_history', '[]');
+    renderHistory();
+  }
+});
+
+document.getElementById('langBtn').addEventListener('click', () => {
+  updateLang(currentLang === 'en' ? 'ar' : 'en');
+});
+
+document.getElementById('themeBtn').addEventListener('click', () => {
+  updateTheme(currentTheme === 'light' ? 'dark' : 'light');
+});
+
+document.getElementById('calcBtn').addEventListener('click', calculateBP);
+document.getElementById('clearBtn').addEventListener('click', () => {
+  document.getElementById('sys').value = '';
+  document.getElementById('dia').value = '';
+  document.getElementById('pulse').value = '';
+  document.getElementById('resultSection').classList.add('hidden');
+});
+
+document.getElementById('aiBtn').addEventListener('click', explainWithAI);
+document.getElementById('findHospitalBtn').addEventListener('click', findHospital);
+document.getElementById('exportBtn').addEventListener('click', exportCSV);
+
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('installBtn').classList.remove('hidden');
+});
+
+document.getElementById('installBtn').addEventListener('click', async () => {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      document.getElementById('installBtn').classList.add('hidden');
+    }
+    deferredPrompt = null;
+  }
+});
+
+init();
+</script>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
